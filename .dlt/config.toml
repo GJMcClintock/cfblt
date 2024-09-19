@@ -1,0 +1,16 @@
+# set buffer size for extract and normalize stages
+[data_writer]
+buffer_max_items=15000
+file_max_items=1000000
+file_max_bytes=5000000
+
+# for all sources and resources being extracted
+[extract]
+workers=11
+
+[normalize]
+# use 3 worker processes to process 3 files in parallel
+workers=11
+
+[load]
+workers=11
