@@ -1,3 +1,4 @@
 
 *.duckdb
 cfblt.duckdb.wal
+/.vscode
