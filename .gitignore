@@ -1,2 +1,3 @@
 
 *.duckdb
+cfblt.duckdb.wal

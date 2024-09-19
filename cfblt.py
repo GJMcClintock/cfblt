@@ -29,8 +29,8 @@ def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_
     # Generate and return the list of years
     return list(range(start_year, end_year + 1))
 
-years = generate_years_list()
-    
+# Seasons has multiple types, its not just a year.
+# Postseason, Regular Season, Offseason, etc.
 @dlt.resource(primary_key='start_date',write_disposition='append',parallelized=True)
 def seasons():
     for year in years:
@@ -55,7 +55,9 @@ def weeks():
                 weeks = item['entries']
                 yield weeks
 
-
+# The games URL takes dates in YYYYMMDD format and returns the events that occured
+# on that day. This generates a list of all the days to process to better help with paralellization
+# for fetching the games on that date.
 @dlt.transformer(primary_key='season_day', write_disposition='merge', data_from=seasons,parallelized=True)
 def season_days(season_record):
     for season in season_record:
@@ -65,6 +67,8 @@ def season_days(season_record):
             yield { 'season_day' : date_cursor.strftime('%Y%m%d')}
             date_cursor += datetime.timedelta(days=1)
 
+# Games is a transformer, just like season_days. It takes season_day as an input and 
+# then makes the request for that date.
 @dlt.transformer(write_disposition='merge',primary_key='id',data_from=season_days,parallelized=True)
 def games(day_record):
     params = {'dates': day_record['season_day']}
@@ -74,6 +78,9 @@ def games(day_record):
             if 'id' in event and event['id']:
                 yield event
 
+# Game details fetches EVERYTHING from the game summary endpoint.
+# dlt does a great job of normalizing this data and breaking it out
+# into nested tables. Next step would be to clean up using dbt within the project.
 @dlt.transformer(write_disposition='merge',primary_key='id',data_from=games,parallelized=True)
 def game_details(game_record):
     params = { 'event': game_record['id'] }
@@ -82,6 +89,7 @@ def game_details(game_record):
         req['id'] = req['header']['id']
         yield req
 
+# Pipelines build sources - return the above tagged functions. dlt does the rest.
 @dlt.source(name='cfblt')
 def cfblt_source():
     return [seasons,weeks,season_days,games,game_details]
@@ -93,6 +101,10 @@ pipeline = dlt.pipeline(
       dataset_name='raw'
       )
 
+# You can get away with __main__, but this allows you to call the pipeline with some
+# arguments from the command line. While this is writing to duckdb, you could easily
+# have it write to parquet and save to your GitHub account and leverage GitHub Actions
+# To automate that.
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a list of years.")
     parser.add_argument("--start_year", type=int, help="Start year (default: 2014)")
