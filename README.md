@@ -24,11 +24,15 @@ To run the pipeline locally with default arguments, simply cd into the directory
 ```python cfblt.py```
 
 You can also pass in a few arguments to customize the behavior of the pipeline. These are:
+
 ```python cfblt.py --start_year 2019 --end_year 2020 --years_to_fill 10 --load_year 2024```
 
 `start_year` - The earliest year to pull data from. Defaults to 2014
+
 `end_year` - The latest year to pull data from. Defaults to the current year
+
 `years_to_fill` - How many years to fill in the database with. This defaults to none and can be used as an alternative to `end_year`
+
 `load_year` - This takes precedence over all other params - and will load data from a specific single year. Defaults to None.
 
 ## dlt 
