@@ -96,9 +96,8 @@ def cfblt_source():
 
 pipeline = dlt.pipeline(
       pipeline_name='cfblt',
-      destination='duckdb',
       progress='enlighten',
-      dataset_name='raw'
+      destination='filesystem'
       )
 
 # You can get away with __main__, but this allows you to call the pipeline with some
@@ -117,5 +116,5 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(cfblt_source())
+    load_info = pipeline.run(cfblt_source(), loader_file_format='parquet')
     print(load_info)
