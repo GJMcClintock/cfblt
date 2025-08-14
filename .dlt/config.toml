@@ -23,3 +23,13 @@ bucket_url='.'
 
 [pipeline] # in ./dlt/config.toml
 loader_file_format="parquet"
+
+[workstreams.data_writer]
+buffer_max_items=100000
+file_max_items=100000
+
+[workstreams.normalize]
+# use 3 worker processes to process 3 files in parallel
+workers=11
+file_max_bytes=500000
+data_page_size=500000
