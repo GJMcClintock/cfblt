@@ -99,9 +99,13 @@ def baseball_dates(year, scoreboard_url):
     req = json.loads(requests.get(url = scoreboard_url, params=params).text)
     season = req["leagues"][0]
     date_cursor = datetime.datetime.strptime(season['calendarStartDate'], "%Y-%m-%dT%H:%MZ")
+    season_start = date_cursor
     cursor_end = datetime.datetime.strptime(season['calendarEndDate'], "%Y-%m-%dT%H:%MZ")
+    season_end = cursor_end
     while date_cursor.date() <= cursor_end.date():
-            dates.append({ 'season_day' : date_cursor.strftime('%Y%m%d')})
+            dates.append({ 'season_day' : date_cursor.strftime('%Y%m%d'), 
+                          'season_start': season_start,
+                          'season_end': season_end})
             date_cursor += datetime.timedelta(days=1)
     return dates
 

@@ -3,8 +3,8 @@ import argparse
 from settings import *
 from helpers import *
 
-GAME_URL = BASE_URL + NFL_SLUG + '/summary' #?event=
-SCOREBOARD_URL = BASE_URL + NFL_SLUG + '/scoreboard' #?dates=YYYYMMDD
+GAME_URL = BASE_URL + MLB_SLUG + '/summary' #?event=
+SCOREBOARD_URL = BASE_URL + MLB_SLUG + '/scoreboard' #?dates=YYYYMMDD
 PIPELINE_NAME = 'workstreams'
 TARGET = 'snowflake'
 
@@ -40,7 +40,9 @@ def picks(game_record):
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
 @dlt.source(name='workstreams')
 def workstreams_source():
-    return [seasons,weeks,season_days,games,game_details,picks]
+    return [season_days
+            ,games,game_details,picks
+            ]
 
 pipeline = dlt.pipeline(
     pipeline_name=PIPELINE_NAME,
