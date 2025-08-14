@@ -25,11 +25,10 @@ bucket_url='.'
 loader_file_format="parquet"
 
 [workstreams.data_writer]
-buffer_max_items=100000
-file_max_items=100000
+buffer_max_items=1000000
+file_max_items=1000000
 
 [workstreams.normalize]
-# use 3 worker processes to process 3 files in parallel
 workers=11
-file_max_bytes=500000
-data_page_size=500000
+file_max_bytes=5000000
+data_page_size=5000000

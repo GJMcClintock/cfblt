@@ -77,5 +77,12 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(networking_source())
+    source = networking_source()
+    json_columns = {}
+    for key in KEYS_TO_JSON:
+        json_columns[key] = {"data_type": "json"}
+    source.game_details.apply_hints(
+        columns=json_columns
+    )
+    load_info = pipeline.run(source)
     print(load_info)

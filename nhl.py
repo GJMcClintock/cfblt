@@ -38,8 +38,8 @@ def picks(game_record):
         yield fetch_picks(game['id'],GAME_URL)
 
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
-@dlt.source(name='networking')
-def networking_source():
+@dlt.source(name='headcount')
+def headount_source():
     return [season_days,games,game_details,picks]
 
 pipeline = dlt.pipeline(
@@ -65,5 +65,12 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(bottomline_source())
+    source = headcount_source()
+    json_columns = {}
+    for key in KEYS_TO_JSON:
+        json_columns[key] = {"data_type": "json"}
+    source.game_details.apply_hints(
+        columns=json_columns
+    )
+    load_info = pipeline.run(source)
     print(load_info)

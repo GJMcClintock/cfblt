@@ -30,7 +30,12 @@ def game_details(game_record):
         yield fetch_game_details(game['id'], GAME_URL)
 
 # Make PICKCENTER Separate because we want to track those changes.
-@dlt.transformer(write_disposition={"disposition": "merge", "strategy": "scd2"},merge_key='id',data_from=games,parallelized=True)
+@dlt.transformer(
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+        merge_key='id',
+        data_from=games,
+        parallelized=True
+)
 def picks(game_record):
     for game in game_record:
         yield fetch_picks(game['id'],GAME_URL)
@@ -67,5 +72,12 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(workstreams_source())
+    source = workstreams_source()
+    json_columns = {}
+    for key in KEYS_TO_JSON:
+        json_columns[key] = {"data_type": "json"}
+    source.game_details.apply_hints(
+        columns=json_columns
+    )
+    load_info = pipeline.run(source)
     print(load_info)

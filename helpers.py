@@ -147,9 +147,6 @@ def fetch_game_details(game_id, game_url):
         req = json.loads(requests.get(url=game_url, params=params).text)
         if 'header' in req and 'id' in req['header']:
             req['id'] = req['header']['id']
-            for key in KEYS_TO_POP:
-                if key in req:
-                    req.pop(key)
             return req
     except:
         pass
