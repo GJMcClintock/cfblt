@@ -97,7 +97,8 @@ def cfblt_source():
 pipeline = dlt.pipeline(
       pipeline_name='cfblt',
       progress='enlighten',
-      destination='filesystem'
+      destination='motherduck',
+      dataset_name="cfb"
       )
 
 # You can get away with __main__, but this allows you to call the pipeline with some
