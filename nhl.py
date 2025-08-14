@@ -38,8 +38,8 @@ def picks(game_record):
         yield fetch_picks(game['id'],GAME_URL)
 
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
-@dlt.source(name='bottomline')
-def bottomline_source():
+@dlt.source(name='networking')
+def networking_source():
     return [season_days,games,game_details,picks]
 
 pipeline = dlt.pipeline(
