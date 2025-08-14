@@ -3,6 +3,7 @@ from dlt.sources.helpers import requests
 import json
 import dlt
 import argparse
+import pandas as pd
 
 SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard' #?dates=YYYYMMDD
 
@@ -75,8 +76,11 @@ def fetch_golf_data(date):
     try:
         req = json.loads(requests.get(url=SCOREBOARD_URL, params=params).text)
         if 'events' in req:
-            tournaments = req['events']
-            return tournaments
+            tournaments = pd.DataFrame(req['events'])
+            tournaments['date'] = date
+            # Drop rows where id is null or NaN
+            tournaments = tournaments.dropna(subset=['id'])
+            return tournaments.to_dict(orient='records')
     except Exception as e:
         pass
 

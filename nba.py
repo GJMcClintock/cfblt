@@ -3,11 +3,11 @@ from dlt.sources.helpers import requests
 import json
 import dlt
 import argparse
-from settings import *
-from helpers import *
 
-GAME_URL = BASE_URL + CFB_SLUG + '/summary' #?event=
-SCOREBOARD_URL = BASE_URL + CFB_SLUG + '/scoreboard' #?dates=YYYYMMDD
+GAME_URL = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary' #?event=
+SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard' #?dates=YYYYMMDD
+
+keys_to_pop = ['pickcenter', 'lastFiveGames', 'news', 'ticketsinfo', 'meta', 'standings']
 
 def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_year=None):
     current_year = datetime.datetime.now().year
@@ -31,61 +31,57 @@ def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_
     # Generate and return the list of years
     return list(range(start_year, end_year + 1))
 
-# Seasons has multiple types, its not just a year.
-# Postseason, Regular Season, Offseason, etc.
-@dlt.resource(primary_key='start_date',write_disposition='append',parallelized=True)
-def seasons():
-    for year in years:
-
-        params = {'dates': str(year)+'1001'}
-        req = json.loads(requests.get(url = SCOREBOARD_URL, params=params).text)
-        cal = req["leagues"][0]["calendar"]
-        for item in cal:
-                if 'entries' in item:
-                    del item['entries']
-        yield cal
-
-@dlt.resource(merge_key='start_date',write_disposition='merge',parallelized=True)
-def weeks():
-    for year in years:
-
-        params = {'dates': str(year)+'1001'}
-        req = json.loads(requests.get(url = SCOREBOARD_URL, params=params).text)
-        cal = req["leagues"][0]["calendar"]
-        for item in cal:
-            if 'entries' in item:
-                weeks = item['entries']
-                yield weeks
-
 # The games URL takes dates in YYYYMMDD format and returns the events that occured
 # on that day. This generates a list of all the days to process to better help with paralellization
 # for fetching the games on that date.
-@dlt.transformer(merge_key='season_day', write_disposition='merge', data_from=seasons,parallelized=True)
-def season_days(season_record):
-    for season in season_record:
-        date_cursor = datetime.datetime.strptime(season['startDate'], "%Y-%m-%dT%H:%MZ")
-        cursor_end = datetime.datetime.strptime(season['endDate'], "%Y-%m-%dT%H:%MZ")
-        while date_cursor.date() <= cursor_end.date():
-            yield { 'season_day' : date_cursor.strftime('%Y%m%d')}
-            date_cursor += datetime.timedelta(days=1)
+@dlt.resource(merge_key='season_day', write_disposition='merge',parallelized=True)
+def season_days():
+        dates = []
+        for year in years:
+
+            params = {'dates': str(year)+'1001'}
+            req = json.loads(requests.get(url = SCOREBOARD_URL, params=params).text)
+            cal = req["leagues"][0]["calendar"]
+            for item in cal:
+                date = datetime.datetime.strptime(item, "%Y-%m-%dT%H:%MZ")
+                formatted_date = date.strftime('%Y%m%d')
+                dates.append(
+                    {   
+                        'season' : year,
+                        'date': date,
+                        'season_day': formatted_date
+                    }
+                )
+        yield dates
 
 # Games is a transformer, just like season_days. It takes season_day as an input and 
 # then makes the request for that date.
 @dlt.transformer(write_disposition='merge',merge_key='id',data_from=season_days,parallelized=True)
 def games(day_record):
-    params = {'dates': day_record['season_day']}
-    req  = json.loads(requests.get(url  = SCOREBOARD_URL, params=params).text)
-    if "events" in req and req['events']:
-        for event in req['events']:
-            if 'id' in event and event['id']:
-                yield event
+    for day in day_record:
+        params = {'dates': day['season_day']}
+        req  = json.loads(requests.get(url  = SCOREBOARD_URL, params=params).text)
+        if "events" in req and req['events']:
+            for event in req['events']:
+                if 'id' in event and event['id']:
+                    yield event
 
 # Game details fetches EVERYTHING from the game summary endpoint.
 # dlt does a great job of normalizing this data and breaking it out
 # into nested tables. Next step would be to clean up using dbt within the project.
 @dlt.transformer(write_disposition='merge',merge_key='id',data_from=games,parallelized=True)
 def game_details(game_record):
-    yield from fetch_game_details(game_record['id'], GAME_URL)
+    params = { 'event': game_record['id'] }
+    try:
+        req   = json.loads(requests.get(url= GAME_URL, params=params).text)
+        if 'header' in req and 'id' in req['header']:
+            req['id'] = req['header']['id']
+            for key in keys_to_pop:
+                if key in req:
+                    req.pop(key)
+            yield req
+    except:
+        pass
 
 # Make PICKCENTER Separate because we want to track those changes.
 @dlt.transformer(write_disposition={"disposition": "merge", "strategy": "scd2"},merge_key='id',data_from=games,parallelized=True)
@@ -104,15 +100,15 @@ def picks(game_record):
 
 
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
-@dlt.source(name='cfblt')
-def cfblt_source():
-    return [seasons,weeks,season_days,games,game_details,picks]
+@dlt.source(name='bottomline')
+def bottomline_source():
+    return [season_days,games,game_details,picks]
 
 pipeline = dlt.pipeline(
-      pipeline_name='cashflow',
+      pipeline_name='bottomline',
       progress='enlighten',
       destination='snowflake',
-      dataset_name="cashflow"
+      dataset_name="bottomline"
       )
 
 # You can get away with __main__, but this allows you to call the pipeline with some
@@ -131,5 +127,5 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(cfblt_source())
+    load_info = pipeline.run(bottomline_source())
     print(load_info)
