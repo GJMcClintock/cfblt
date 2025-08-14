@@ -3,6 +3,7 @@ from settings import *
 from dlt.sources.helpers import requests
 import dlt
 import json
+import pandas as pd
 
 def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_year=None):
     current_year = datetime.datetime.now().year
@@ -92,6 +93,19 @@ def calendar_dates(year, scoreboard_url):
     return dates
 
 @dlt.defer
+def baseball_dates(year, scoreboard_url):
+    dates = []
+    params = {'dates': str(year)+'0601'}
+    req = json.loads(requests.get(url = scoreboard_url, params=params).text)
+    season = req["leagues"][0]
+    date_cursor = datetime.datetime.strptime(season['calendarStartDate'], "%Y-%m-%dT%H:%MZ")
+    cursor_end = datetime.datetime.strptime(season['calendarEndDate'], "%Y-%m-%dT%H:%MZ")
+    while date_cursor.date() <= cursor_end.date():
+            dates.append({ 'season_day' : date_cursor.strftime('%Y%m%d')})
+            date_cursor += datetime.timedelta(days=1)
+    return dates
+
+@dlt.defer
 def fetch_football_seasons(year, scoreboard_url):
         params = {'dates': str(year)+'1001'}
         req = json.loads(requests.get(url = scoreboard_url, params=params).text)
@@ -152,10 +166,10 @@ def fetch_picks(game_id, game_url):
     return picks
 
 @dlt.defer
-def fetch_golf_data(date):
+def fetch_golf_data(date, scoreboard_url):
     params = {'dates': str(date)}
     try:
-        req = json.loads(requests.get(url=SCOREBOARD_URL, params=params).text)
+        req = json.loads(requests.get(url=scoreboard_url, params=params).text)
         if 'events' in req:
             tournaments = pd.DataFrame(req['events'])
             tournaments['date'] = date

@@ -1,126 +1,65 @@
-import datetime
-from dlt.sources.helpers import requests
-import json
 import dlt
 import argparse
+from settings import *
+from helpers import *
 
-GAME_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary' #?event=
-SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' #?dates=YYYYMMDD
-
-keys_to_pop = ['pickcenter', 'lastFiveGames', 'news', 'ticketsinfo', 'meta', 'standings']
-
-def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_year=None):
-    current_year = datetime.datetime.now().year
-    
-    if load_year is not None:
-        return [load_year]
-    # Set default start_year if not provided
-    if start_year is None:
-        start_year = DEFAULT_START_YEAR
-    
-    # Determine end_year
-    if end_year is None:
-        if years_to_fill is not None:
-            end_year = min(start_year + years_to_fill - 1, current_year)
-        else:
-            end_year = current_year
-    
-    # Ensure end_year is not greater than current_year
-    end_year = min(end_year, current_year)
-    
-    # Generate and return the list of years
-    return list(range(start_year, end_year + 1))
+GAME_URL = BASE_URL + NFL_SLUG + '/summary' #?event=
+SCOREBOARD_URL = BASE_URL + NFL_SLUG + '/scoreboard' #?dates=YYYYMMDD
+PIPELINE_NAME = 'networking'
+TARGET = 'snowflake'
 
 # Seasons has multiple types, its not just a year.
 # Postseason, Regular Season, Offseason, etc.
 @dlt.resource(primary_key='start_date',write_disposition='append',parallelized=True)
 def seasons():
     for year in years:
+        yield fetch_football_seasons(year, SCOREBOARD_URL)
 
-        params = {'dates': str(year)+'1001'}
-        req = json.loads(requests.get(url = SCOREBOARD_URL, params=params).text)
-        cal = req["leagues"][0]["calendar"]
-        for item in cal:
-                if 'entries' in item:
-                    del item['entries']
-        yield cal
-
-@dlt.resource(primary_key='start_date',write_disposition='merge',parallelized=True)
+@dlt.resource(merge_key='start_date',write_disposition='merge',parallelized=True)
 def weeks():
     for year in years:
-
-        params = {'dates': str(year)+'1001'}
-        req = json.loads(requests.get(url = SCOREBOARD_URL, params=params).text)
-        cal = req["leagues"][0]["calendar"]
-        for item in cal:
-            if 'entries' in item:
-                weeks = item['entries']
-                yield weeks
+       yield fetch_football_weeks(year, SCOREBOARD_URL)
 
 # The games URL takes dates in YYYYMMDD format and returns the events that occured
 # on that day. This generates a list of all the days to process to better help with paralellization
 # for fetching the games on that date.
-@dlt.transformer(primary_key='season_day', write_disposition='merge', data_from=seasons,parallelized=True)
+@dlt.transformer(merge_key='season_day', write_disposition='merge', data_from=seasons,parallelized=True)
 def season_days(season_record):
     for season in season_record:
-        date_cursor = datetime.datetime.strptime(season['startDate'], "%Y-%m-%dT%H:%MZ")
-        cursor_end = datetime.datetime.strptime(season['endDate'], "%Y-%m-%dT%H:%MZ")
-        while date_cursor.date() <= cursor_end.date():
-            yield { 'season_day' : date_cursor.strftime('%Y%m%d')}
-            date_cursor += datetime.timedelta(days=1)
+        yield make_date_range(season)
 
-# Games is a transformer, just like season_days. It takes season_day as an input and 
-# then makes the request for that date.
-@dlt.transformer(write_disposition='merge',primary_key='id',data_from=season_days,parallelized=True)
+@dlt.transformer(write_disposition='merge',merge_key='id',data_from=season_days,parallelized=True)
 def games(day_record):
-    params = {'dates': day_record['season_day']}
-    req  = json.loads(requests.get(url  = SCOREBOARD_URL, params=params).text)
-    if "events" in req and req['events']:
-        for event in req['events']:
-            if 'id' in event and event['id']:
-                yield event
+    for day in day_record:
+        yield fetch_games(day, SCOREBOARD_URL)
 
 # Game details fetches EVERYTHING from the game summary endpoint.
 # dlt does a great job of normalizing this data and breaking it out
 # into nested tables. Next step would be to clean up using dbt within the project.
-@dlt.transformer(write_disposition='merge',primary_key='id',data_from=games,parallelized=True)
+@dlt.transformer(write_disposition='merge',merge_key='id',data_from=games,parallelized=True)
 def game_details(game_record):
-    params = { 'event': game_record['id'] }
-    try:
-        req   = json.loads(requests.get(url= GAME_URL, params=params).text)
-        if 'header' in req and 'id' in req['header']:
-            req['id'] = req['header']['id']
-            for key in keys_to_pop:
-                if key in req:
-                    req.pop(key)
-    except:
-        pass
+    for game in game_record:
+        yield fetch_game_details(game['id'], GAME_URL)
 
 # Make PICKCENTER Separate because we want to track those changes.
-@dlt.transformer(write_disposition={"disposition": "merge", "strategy": "scd2"},primary_key='id',data_from=games,parallelized=True)
+@dlt.transformer(write_disposition={"disposition": "merge", "strategy": "scd2"},merge_key='id',data_from=games,parallelized=True)
 def picks(game_record):
-    params = { 'event': game_record['id'] }
-    try:
-        req   = json.loads(requests.get(url= GAME_URL, params=params).text)
-        if 'header' in req and 'id' in req['header']:
-            pick = req['pickcenter'] if 'pickcenter' in req else None
-            pick = {'pickcenter': pick}
-            pick['id'] = req['header']['id']
-            yield pick
-    except:
-        pass
+    for game in game_record:
+        yield fetch_picks(game['id'],GAME_URL)
+
+
 
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
-@dlt.source(name='nflt')
-def nflt_source():
+@dlt.source(name='networking')
+def networking_source():
     return [seasons,weeks,season_days,games,game_details,picks]
 
 pipeline = dlt.pipeline(
-      pipeline_name='networks',
-      progress='enlighten',
-      destination='snowflake',
-      dataset_name="networks"
-      )
+    pipeline_name=PIPELINE_NAME,
+    progress='enlighten',
+    destination=TARGET,
+    dataset_name=PIPELINE_NAME
+)
 
 # You can get away with __main__, but this allows you to call the pipeline with some
 # arguments from the command line. While this is writing to duckdb, you could easily
@@ -138,5 +77,5 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(nflt_source())
+    load_info = pipeline.run(networking_source())
     print(load_info)

@@ -1,4 +1,3 @@
-from dlt.sources.helpers import requests
 import dlt
 import argparse
 from settings import *

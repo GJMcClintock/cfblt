@@ -20,12 +20,11 @@ pipeline = dlt.pipeline(
     write_disposition='merge'
 )
 def get_growth():
+    date_list = generate_dates_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     for date in date_list:
-        tournaments = fetch_golf_data(date)
+        tournaments = fetch_golf_data(date, SCOREBOARD_URL)
         if tournaments:
             yield tournaments
-
-
 
 
 if __name__ == "__main__":
@@ -40,6 +39,5 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    date_list = generate_dates_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     load_info = pipeline.run(get_growth())
     print(load_info)

@@ -13,12 +13,12 @@ TARGET = 'snowflake'
 @dlt.resource(primary_key='start_date',write_disposition='append',parallelized=True)
 def seasons():
     for year in years:
-        yield from fetch_football_seasons(year, SCOREBOARD_URL)
+        yield fetch_football_seasons(year, SCOREBOARD_URL)
 
 @dlt.resource(merge_key='start_date',write_disposition='merge',parallelized=True)
 def weeks():
     for year in years:
-       yield from fetch_football_weeks(year, SCOREBOARD_URL)
+       yield fetch_football_weeks(year, SCOREBOARD_URL)
 
 # The games URL takes dates in YYYYMMDD format and returns the events that occured
 # on that day. This generates a list of all the days to process to better help with paralellization
@@ -28,30 +28,30 @@ def season_days(season_record):
     for season in season_record:
         yield make_date_range(season)
 
-# Games is a transformer, just like season_days. It takes season_day as an input and 
-# then makes the request for that date.
 @dlt.transformer(write_disposition='merge',merge_key='id',data_from=season_days,parallelized=True)
 def games(day_record):
-    yield fetch_games(day_record, SCOREBOARD_URL)
-    
+    for day in day_record:
+        yield fetch_games(day, SCOREBOARD_URL)
 
 # Game details fetches EVERYTHING from the game summary endpoint.
 # dlt does a great job of normalizing this data and breaking it out
 # into nested tables. Next step would be to clean up using dbt within the project.
 @dlt.transformer(write_disposition='merge',merge_key='id',data_from=games,parallelized=True)
 def game_details(game_record):
-    yield fetch_game_details(game_record['id'], GAME_URL)
+    for game in game_record:
+        yield fetch_game_details(game['id'], GAME_URL)
 
 # Make PICKCENTER Separate because we want to track those changes.
 @dlt.transformer(write_disposition={"disposition": "merge", "strategy": "scd2"},merge_key='id',data_from=games,parallelized=True)
 def picks(game_record):
-    yield fetch_picks(game_record['id'],GAME_URL)
+    for game in game_record:
+        yield fetch_picks(game['id'],GAME_URL)
 
 
 
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
-@dlt.source(name='cfblt')
-def cfblt_source():
+@dlt.source(name='cashflow')
+def cashflow_source():
     return [seasons,weeks,season_days,games,game_details,picks]
 
 pipeline = dlt.pipeline(
@@ -77,5 +77,5 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(cfblt_source())
+    load_info = pipeline.run(cashflow_source())
     print(load_info)
