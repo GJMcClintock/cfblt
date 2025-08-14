@@ -4,11 +4,8 @@ import json
 import dlt
 import argparse
 
-GAME_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary' #?event=
-SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard' #?dates=YYYYMMDD
-
-# NFL https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard
-# NBA 
+GAME_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary' #?event=
+SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' #?dates=YYYYMMDD
 
 def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_year=None):
     current_year = datetime.datetime.now().year
@@ -91,6 +88,8 @@ def game_details(game_record):
         req   = json.loads(requests.get(url= GAME_URL, params=params).text)
         if 'header' in req and 'id' in req['header']:
             req['id'] = req['header']['id']
+            if 'pickcenter' in req:
+                del req['pickcenter']
             yield req
     except:
         pass
@@ -109,18 +108,16 @@ def picks(game_record):
     except:
         pass
 
-
-
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
 @dlt.source(name='cfblt')
 def cfblt_source():
     return [seasons,weeks,season_days,games,game_details,picks]
 
 pipeline = dlt.pipeline(
-      pipeline_name='cashflow',
+      pipeline_name='networks',
       progress='enlighten',
       destination='snowflake',
-      dataset_name="cashflow"
+      dataset_name="networks"
       )
 
 # You can get away with __main__, but this allows you to call the pipeline with some
@@ -139,5 +136,5 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(cfblt_source())
+    load_info = pipeline.run(cfblt_source(), loader_file_format='parquet')
     print(load_info)

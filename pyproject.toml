@@ -1,0 +1,17 @@
+[project]
+name = "cfblt"
+version = "0.1.0"
+description = "College Football Data Pipeline"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dlt[cli,duckdb,parquet,snowflake]>=1.10.0",
+    "enlighten>=1.12",
+    "pip>=24.3.1",
+    "pandas>=2.0.0",
+    "pyarrow",
+    "db-dtypes",
+    "ipykernel",
+    "tqdm",
+    "ipywidgets"
+]

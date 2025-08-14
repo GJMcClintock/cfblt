@@ -3,3 +3,5 @@
 cfblt.duckdb.wal
 /.vscode
 .dlt/secrets.toml
+/__pycache__
+.env
