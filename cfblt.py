@@ -7,6 +7,8 @@ import argparse
 GAME_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary' #?event=
 SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard' #?dates=YYYYMMDD
 
+keys_to_pop = ['pickcenter', 'lastFiveGames', 'news', 'ticketsinfo', 'meta', 'standings']
+
 # NFL https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard
 # NBA 
 
@@ -46,7 +48,7 @@ def seasons():
                     del item['entries']
         yield cal
 
-@dlt.resource(primary_key='start_date',write_disposition='merge',parallelized=True)
+@dlt.resource(merge_key='start_date',write_disposition='merge',parallelized=True)
 def weeks():
     for year in years:
 
@@ -61,7 +63,7 @@ def weeks():
 # The games URL takes dates in YYYYMMDD format and returns the events that occured
 # on that day. This generates a list of all the days to process to better help with paralellization
 # for fetching the games on that date.
-@dlt.transformer(primary_key='season_day', write_disposition='merge', data_from=seasons,parallelized=True)
+@dlt.transformer(merge_key='season_day', write_disposition='merge', data_from=seasons,parallelized=True)
 def season_days(season_record):
     for season in season_record:
         date_cursor = datetime.datetime.strptime(season['startDate'], "%Y-%m-%dT%H:%MZ")
@@ -72,7 +74,7 @@ def season_days(season_record):
 
 # Games is a transformer, just like season_days. It takes season_day as an input and 
 # then makes the request for that date.
-@dlt.transformer(write_disposition='merge',primary_key='id',data_from=season_days,parallelized=True)
+@dlt.transformer(write_disposition='merge',merge_key='id',data_from=season_days,parallelized=True)
 def games(day_record):
     params = {'dates': day_record['season_day']}
     req  = json.loads(requests.get(url  = SCOREBOARD_URL, params=params).text)
@@ -84,19 +86,22 @@ def games(day_record):
 # Game details fetches EVERYTHING from the game summary endpoint.
 # dlt does a great job of normalizing this data and breaking it out
 # into nested tables. Next step would be to clean up using dbt within the project.
-@dlt.transformer(write_disposition='merge',primary_key='id',data_from=games,parallelized=True)
+@dlt.transformer(write_disposition='merge',merge_key='id',data_from=games,parallelized=True)
 def game_details(game_record):
     params = { 'event': game_record['id'] }
     try:
         req   = json.loads(requests.get(url= GAME_URL, params=params).text)
         if 'header' in req and 'id' in req['header']:
             req['id'] = req['header']['id']
+            for key in keys_to_pop:
+                if key in req:
+                    req.pop(key)
             yield req
     except:
         pass
 
 # Make PICKCENTER Separate because we want to track those changes.
-@dlt.transformer(write_disposition={"disposition": "merge", "strategy": "scd2"},primary_key='id',data_from=games,parallelized=True)
+@dlt.transformer(write_disposition={"disposition": "merge", "strategy": "scd2"},merge_key='id',data_from=games,parallelized=True)
 def picks(game_record):
     params = { 'event': game_record['id'] }
     try:

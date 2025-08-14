@@ -7,6 +7,8 @@ import argparse
 GAME_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary' #?event=
 SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard' #?dates=YYYYMMDD
 
+keys_to_pop = ['pickcenter', 'lastFiveGames', 'news', 'ticketsinfo', 'meta', 'standings']
+
 def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_year=None):
     current_year = datetime.datetime.now().year
     
@@ -88,9 +90,9 @@ def game_details(game_record):
         req   = json.loads(requests.get(url= GAME_URL, params=params).text)
         if 'header' in req and 'id' in req['header']:
             req['id'] = req['header']['id']
-            if 'pickcenter' in req:
-                del req['pickcenter']
-            yield req
+            for key in keys_to_pop:
+                if key in req:
+                    req.pop(key)
     except:
         pass
 
@@ -109,8 +111,8 @@ def picks(game_record):
         pass
 
 # Pipelines build sources - return the above tagged functions. dlt does the rest.
-@dlt.source(name='cfblt')
-def cfblt_source():
+@dlt.source(name='nflt')
+def nflt_source():
     return [seasons,weeks,season_days,games,game_details,picks]
 
 pipeline = dlt.pipeline(
@@ -136,5 +138,5 @@ if __name__ == "__main__":
     years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
     print(years)
-    load_info = pipeline.run(cfblt_source(), loader_file_format='parquet')
+    load_info = pipeline.run(nflt_source())
     print(load_info)
