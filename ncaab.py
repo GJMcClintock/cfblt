@@ -16,7 +16,7 @@ def generate_years_list(start_year=None, end_year=None, years_to_fill=None,load_
         return [load_year]
     # Set default start_year if not provided
     if start_year is None:
-        start_year = 2014
+        start_year = DEFAULT_START_YEAR
     
     # Determine end_year
     if end_year is None:
