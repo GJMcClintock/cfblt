@@ -66,11 +66,5 @@ if __name__ == "__main__":
     print("Loading the following years: ") 
     print(years)
     source = metrics_source()
-    json_columns = {}
-    for key in KEYS_TO_JSON:
-        json_columns[key] = {"data_type": "json"}
-    source.game_details.apply_hints(
-        columns=json_columns
-    )
     load_info = pipeline.run(source)
     print(load_info)

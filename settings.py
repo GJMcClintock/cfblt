@@ -1,5 +1,6 @@
-KEYS_TO_JSON = ['pickcenter', 'lastFiveGames', 'news', 'ticketsInfo', 'meta', 'standings','article',
-                'atBats','playsMap','seasonSeries','rosters','boxscore','plays']
+KEYS_TO_POP = ['pickcenter', 'lastFiveGames', 'news', 'ticketsInfo', 'meta', 'standings']
+
+BASEBALL_KEYS_TO_JSON = ['article','atBats','playsMap','seasonSeries','rosters','boxscore','plays']
 DEFAULT_START_YEAR = 2014
 
 BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports'

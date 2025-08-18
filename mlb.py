@@ -74,7 +74,7 @@ if __name__ == "__main__":
     print(years)
     source = workstreams_source()
     json_columns = {}
-    for key in KEYS_TO_JSON:
+    for key in BASEBALL_KEYS_TO_JSON:
         json_columns[key] = {"data_type": "json"}
     source.game_details.apply_hints(
         columns=json_columns
