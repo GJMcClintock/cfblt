@@ -69,9 +69,9 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
+    all_years = generate_years_list(args.start_year, args.end_year, args.years_to_fill,args.load_year)
     print("Loading the following years: ") 
-    print(years)
+    print(all_years)
     source = workstreams_source()
     json_columns = {}
     for key in BASEBALL_KEYS_TO_JSON:
@@ -79,5 +79,7 @@ if __name__ == "__main__":
     source.game_details.apply_hints(
         columns=json_columns
     )
-    load_info = pipeline.run(source)
-    print(load_info)
+    for year in all_years:
+        years = [year]
+        load_info = pipeline.run(source)
+        print(load_info)
